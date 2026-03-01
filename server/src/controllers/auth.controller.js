@@ -40,9 +40,18 @@ export const register = asyncHandeler(async (req, res) => {
     throw new ApiError(400, "all fields are required");
   }
 
+  if (!validator.isEmail(email)) {
+    throw new ApiError(400, "invalid email format");
+  }
+
+  if (!validator.isStrongPassword(password)) {
+    throw new ApiError(400, "password is not strong");
+  }
+
   const user = await User.findOne({ email });
+  
   if (user) {
-    throw new ApiError(409, "user already exists");
+    throw new ApiError(400, "user already exists");
   }
 
   const salt = await bcrypt.genSalt(10);
