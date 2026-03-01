@@ -3,12 +3,25 @@ import "dotenv/config";
 import authRouter from "./src/routes/auth.route.js";
 import cookieParser from "cookie-parser";
 import connectDb from "./src/config/db.js";
+import rateLimit from "express-rate-limit";
+import cors from "cors";
 
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: "too many requests,please try again later",
+});
 
 const app = express();
-
 app.use(express.json());
 app.use(cookieParser());
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true,
+  }),
+);
+app.use(globalLimiter);
 
 const port = process.env.PORT || 5000;
 
@@ -26,6 +39,6 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(port, () => {
-  console.log(`app is running on port:http://localhost:${port}🐦`);
-  connectDb()
+  console.log(`app is running on port:http://localhost:${port} 🐦`);
+  connectDb();
 });
