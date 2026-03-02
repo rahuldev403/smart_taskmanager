@@ -42,6 +42,34 @@ async function postJson<TResponse>(
   return json;
 }
 
+async function getJson<TResponse>(
+  path: string,
+): Promise<ApiEnvelope<TResponse>> {
+  let json: ApiEnvelope<TResponse>;
+
+  try {
+    const res = await axios.get<ApiEnvelope<TResponse>>(`${API_BASE}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      withCredentials: true,
+    });
+    json = res.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const messageFromApi =
+        (error.response?.data as { message?: string } | undefined)?.message ??
+        error.message;
+      throw new Error(messageFromApi || "Request failed");
+    }
+    throw error;
+  }
+
+  if (!json.success) {
+    throw new Error(json?.message || "Request failed");
+  }
+
+  return json;
+}
+
 function extractUser(data: unknown): AuthUser | null {
   if (!data || typeof data !== "object") return null;
   const maybeObj = data as Record<string, unknown>;
@@ -130,7 +158,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       await postJson<null>("/api/auth/refresh");
-      set({ isAuthenticated: true, isLoading: false, bootstrapped: true });
+      const response = await getJson<{ user?: AuthUser } | AuthUser>(
+        "/api/auth/me",
+      );
+      const user = extractUser(response.data);
+      set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        bootstrapped: true,
+      });
     } catch {
       set({
         user: null,

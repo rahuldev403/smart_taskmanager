@@ -58,3 +58,49 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+@keyframes toast-progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.toast-enter {
+  animation: toast-enter 180ms ease-out;
+}
+
+.toast-exit {
+  animation: toast-exit 180ms ease-in forwards;
+}
+
+.toast-progress {
+  animation-name: toast-progress;
+  animation-duration: 3500ms;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
