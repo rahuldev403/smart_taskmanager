@@ -104,3 +104,23 @@
   animation-timing-function: linear;
   animation-fill-mode: forwards;
 }
+
+.calendar-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.9;
+  transition:
+    transform 150ms ease,
+    filter 150ms ease,
+    opacity 150ms ease;
+}
+
+.calendar-input:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
+
+.dark .calendar-input::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.8)
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.45));
+  transform: scale(1.28);
+  opacity: 1;
+}

@@ -455,6 +455,7 @@ function App() {
                   />
                   <Input
                     type="date"
+                    className="calendar-input"
                     value={createForm.dueDate}
                     onChange={(event) =>
                       setCreateForm((previous) => ({
@@ -611,6 +612,7 @@ function App() {
                             <div className="grid grid-cols-3 gap-2">
                               <Input
                                 type="date"
+                                className="calendar-input"
                                 value={editForm.dueDate}
                                 onChange={(event) =>
                                   setEditForm((previous) => ({
