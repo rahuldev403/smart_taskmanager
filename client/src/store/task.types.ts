@@ -1,3 +1,5 @@
+import type { AuthUser } from "./auth.types";
+
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 
 export type TaskPriority = "low" | "medium" | "high";
@@ -24,4 +26,8 @@ export type TaskListResponse = {
     limit: number;
     totalPages: number;
   };
+};
+
+export type UsersListResponse = {
+  users: AuthUser[];
 };

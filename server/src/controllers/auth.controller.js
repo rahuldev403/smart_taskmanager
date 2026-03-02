@@ -35,12 +35,15 @@ export const refresh = asyncHandeler(async (req, res) => {
 });
 export const register = asyncHandeler(async (req, res) => {
   const { userName, email, password } = req.body;
+  const normalizedEmail = String(email || "")
+    .trim()
+    .toLowerCase();
 
   if (!userName || !email || !password) {
     throw new ApiError(400, "all fields are required");
   }
 
-  if (!validator.isEmail(email)) {
+  if (!validator.isEmail(normalizedEmail)) {
     throw new ApiError(400, "invalid email format");
   }
 
@@ -48,7 +51,7 @@ export const register = asyncHandeler(async (req, res) => {
     throw new ApiError(400, "password is not strong");
   }
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: normalizedEmail });
 
   if (user) {
     throw new ApiError(400, "user already exists");
@@ -59,7 +62,7 @@ export const register = asyncHandeler(async (req, res) => {
 
   const newUser = await User.create({
     userName,
-    email,
+    email: normalizedEmail,
     password: hashedPassword,
   });
 
@@ -105,15 +108,18 @@ export const register = asyncHandeler(async (req, res) => {
 
 export const logIn = asyncHandeler(async (req, res) => {
   const { email, password } = req.body;
+  const normalizedEmail = String(email || "")
+    .trim()
+    .toLowerCase();
   if (!email || !password) {
     throw new ApiError(400, "all feilds are required");
   }
 
-  if (!validator.isEmail(email)) {
+  if (!validator.isEmail(normalizedEmail)) {
     throw new ApiError(400, "invalid email format");
   }
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
     throw new ApiError(400, "user not found");
@@ -172,4 +178,14 @@ export const logOut = asyncHandeler(async (req, res) => {
     .clearCookie("refreshToken")
     .clearCookie("accessToken")
     .json(new ApiResponse(200, null, "user loggedout successfully"));
+});
+
+export const listUsers = asyncHandeler(async (_req, res) => {
+  const users = await User.find({})
+    .select("_id userName email userType")
+    .sort({ userName: 1 });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { users }, "Users fetched successfully"));
 });

@@ -4,6 +4,7 @@ import {
   refresh,
   logIn,
   logOut,
+  listUsers,
 } from "../controllers/auth.controller.js";
 import rateLimit from "express-rate-limit";
 import { requireAdmin, requireAuth } from "../middlewares/authMiddleware.js";
@@ -31,5 +32,7 @@ authRouter.get("/me", requireAuth, (req, res) => {
 authRouter.get("/admin", requireAuth, requireAdmin, (req, res) => {
   return res.status(200).json(new ApiResponse(200, req.user, "Welcome admin"));
 });
+
+authRouter.get("/users", requireAuth, requireAdmin, listUsers);
 
 export default authRouter;

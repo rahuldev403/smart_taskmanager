@@ -1,4 +1,5 @@
 import Task from "../models/task.model.js";
+import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
@@ -14,9 +15,62 @@ function ensureValidTaskId(taskId) {
   }
 }
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function resolveAssignedUserId({ assignedTo, assignedUserName }) {
+  if (assignedTo !== undefined) {
+    if (assignedTo === null || assignedTo === "") {
+      return null;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(String(assignedTo))) {
+      throw new ApiError(400, "Invalid assigned user id");
+    }
+
+    const user = await User.findById(assignedTo).select("_id");
+    if (!user) {
+      throw new ApiError(404, "Assigned user not found");
+    }
+
+    return user._id;
+  }
+
+  if (assignedUserName !== undefined) {
+    const normalizedUserName = String(assignedUserName || "").trim();
+    if (!normalizedUserName) {
+      return null;
+    }
+
+    const user = await User.findOne({
+      userName: {
+        $regex: `^${escapeRegex(normalizedUserName)}$`,
+        $options: "i",
+      },
+    }).select("_id");
+
+    if (!user) {
+      throw new ApiError(404, "Assigned user not found");
+    }
+
+    return user._id;
+  }
+
+  return undefined;
+}
+
 export const createTask = asyncHandeler(async (req, res) => {
   const user = req.user;
-  const { title, description, status, priority, dueDate } = req.body;
+  const {
+    title,
+    description,
+    status,
+    priority,
+    dueDate,
+    assignedTo,
+    assignedUserName,
+  } = req.body;
 
   if (!user?._id) {
     throw new ApiError(401, "Authentication required");
@@ -38,12 +92,26 @@ export const createTask = asyncHandeler(async (req, res) => {
     throw new ApiError(400, "Invalid priority");
   }
 
+  const isAdmin = user.userType === "admin";
+
+  if (
+    (assignedTo !== undefined || assignedUserName !== undefined) &&
+    !isAdmin
+  ) {
+    throw new ApiError(403, "Only admin can assign tasks");
+  }
+
+  const resolvedAssignedTo = isAdmin
+    ? await resolveAssignedUserId({ assignedTo, assignedUserName })
+    : undefined;
+
   const newTask = await Task.create({
     title: title.trim(),
     description: description.trim(),
     status: status || "pending",
     priority: priority || "high",
     dueDate,
+    assignedTo: resolvedAssignedTo,
     createdBy: user._id,
   });
 
@@ -55,8 +123,15 @@ export const createTask = asyncHandeler(async (req, res) => {
 export const updateTask = asyncHandeler(async (req, res) => {
   const user = req.user;
   const { taskId } = req.params;
-  const { title, description, status, priority, dueDate, assignedTo } =
-    req.body;
+  const {
+    title,
+    description,
+    status,
+    priority,
+    dueDate,
+    assignedTo,
+    assignedUserName,
+  } = req.body;
 
   if (!user?._id) {
     throw new ApiError(401, "Authentication required");
@@ -96,24 +171,23 @@ export const updateTask = asyncHandeler(async (req, res) => {
     throw new ApiError(400, "Invalid due date");
   }
 
-  if (assignedTo !== undefined && !isAdmin) {
+  if (
+    (assignedTo !== undefined || assignedUserName !== undefined) &&
+    !isAdmin
+  ) {
     throw new ApiError(403, "Only admin can assign tasks");
   }
 
-  if (
-    assignedTo !== undefined &&
-    assignedTo !== null &&
-    !mongoose.Types.ObjectId.isValid(String(assignedTo))
-  ) {
-    throw new ApiError(400, "Invalid assigned user id");
-  }
+  const resolvedAssignedTo = isAdmin
+    ? await resolveAssignedUserId({ assignedTo, assignedUserName })
+    : undefined;
 
   if (title !== undefined) task.title = String(title).trim();
   if (description !== undefined) task.description = String(description).trim();
   if (status !== undefined) task.status = status;
   if (priority !== undefined) task.priority = priority;
   if (dueDate !== undefined) task.dueDate = dueDate;
-  if (assignedTo !== undefined) task.assignedTo = assignedTo;
+  if (resolvedAssignedTo !== undefined) task.assignedTo = resolvedAssignedTo;
 
   const updatedTask = await task.save();
 
@@ -178,6 +252,7 @@ export const getMyTasks = asyncHandeler(async (req, res) => {
     search,
     fromDate,
     toDate,
+    userId,
     page = 1,
     limit = 10,
   } = req.query;
@@ -210,6 +285,14 @@ export const getMyTasks = asyncHandeler(async (req, res) => {
   if (user.userType !== "admin") {
     andConditions.push({
       $or: [{ createdBy: user._id }, { assignedTo: user._id }],
+    });
+  } else if (userId) {
+    if (!mongoose.Types.ObjectId.isValid(String(userId))) {
+      throw new ApiError(400, "Invalid userId filter");
+    }
+
+    andConditions.push({
+      $or: [{ createdBy: userId }, { assignedTo: userId }],
     });
   }
 

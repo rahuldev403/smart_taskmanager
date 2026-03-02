@@ -19,7 +19,9 @@ import type {
   TaskListResponse,
   TaskPriority,
   TaskStatus,
+  UsersListResponse,
 } from "./store/task.types";
+import type { AuthUser } from "./store/auth.types";
 
 type TaskFormState = {
   title: string;
@@ -27,6 +29,7 @@ type TaskFormState = {
   dueDate: string;
   status: TaskStatus;
   priority: TaskPriority;
+  assignedUserName: string;
 };
 
 const STATUS_OPTIONS: TaskStatus[] = [
@@ -67,6 +70,8 @@ function App() {
     clearError,
   } = useAuthStore();
 
+  const isAdmin = user?.userType === "admin";
+
   const [loginOpen, setLoginOpen] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -75,6 +80,8 @@ function App() {
   const [taskActionLoading, setTaskActionLoading] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [theme, setTheme] = useState<"dark" | "light">(() =>
     document.documentElement.classList.contains("dark") ? "dark" : "light",
   );
@@ -91,6 +98,7 @@ function App() {
     dueDate: "",
     status: "pending",
     priority: "high",
+    assignedUserName: "",
   });
 
   const [editForm, setEditForm] = useState<TaskFormState>({
@@ -99,6 +107,7 @@ function App() {
     dueDate: "",
     status: "pending",
     priority: "high",
+    assignedUserName: "",
   });
 
   useEffect(() => {
@@ -146,6 +155,32 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated || !bootstrapped) return;
 
+    if (isAdmin) {
+      async function loadUsersForAdmin() {
+        try {
+          const response = await apiGet<UsersListResponse>("/api/auth/users");
+          setUsers(response.data?.users ?? []);
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Failed to fetch users";
+          pushToast({
+            title: "Could not load users",
+            description: message,
+            variant: "error",
+          });
+        }
+      }
+
+      loadUsersForAdmin();
+    } else {
+      setUsers([]);
+      setSelectedUserId("");
+    }
+  }, [isAuthenticated, bootstrapped, isAdmin]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !bootstrapped) return;
+
     async function loadTasks() {
       setTasksLoading(true);
       setTaskError(null);
@@ -154,6 +189,7 @@ function App() {
         if (filters.status) query.set("status", filters.status);
         if (filters.priority) query.set("priority", filters.priority);
         if (filters.search.trim()) query.set("search", filters.search.trim());
+        if (isAdmin && selectedUserId) query.set("userId", selectedUserId);
 
         const response = await apiGet<TaskListResponse>(
           `/api/tasks${query.toString() ? `?${query.toString()}` : ""}`,
@@ -175,7 +211,7 @@ function App() {
     }
 
     loadTasks();
-  }, [isAuthenticated, bootstrapped, filters]);
+  }, [isAuthenticated, bootstrapped, filters, isAdmin, selectedUserId]);
 
   async function handleLogin(payload: { email: string; password: string }) {
     clearError();
@@ -245,6 +281,9 @@ function App() {
         dueDate: createForm.dueDate,
         status: createForm.status,
         priority: createForm.priority,
+        ...(isAdmin && createForm.assignedUserName.trim()
+          ? { assignedUserName: createForm.assignedUserName.trim() }
+          : {}),
       });
 
       const createdTask = response.data;
@@ -258,6 +297,7 @@ function App() {
         dueDate: "",
         status: "pending",
         priority: "high",
+        assignedUserName: "",
       });
       pushToast({ title: "Task created", variant: "success" });
     } catch (err) {
@@ -275,6 +315,10 @@ function App() {
   }
 
   function startEditing(task: TaskItem) {
+    const assignedUser = users.find(
+      (candidate) => candidate._id === task.assignedTo,
+    );
+
     setEditingTaskId(task._id);
     setEditForm({
       title: task.title,
@@ -282,6 +326,7 @@ function App() {
       dueDate: normalizeDateForInput(task.dueDate),
       status: task.status,
       priority: task.priority,
+      assignedUserName: assignedUser?.userName ?? "",
     });
   }
 
@@ -310,6 +355,13 @@ function App() {
         dueDate: editForm.dueDate,
         status: editForm.status,
         priority: editForm.priority,
+        ...(isAdmin
+          ? {
+              assignedUserName: editForm.assignedUserName.trim()
+                ? editForm.assignedUserName.trim()
+                : "",
+            }
+          : {}),
       });
 
       const updatedTask = response.data;
@@ -499,6 +551,26 @@ function App() {
                     </select>
                   </div>
 
+                  {isAdmin ? (
+                    <select
+                      className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      value={createForm.assignedUserName}
+                      onChange={(event) =>
+                        setCreateForm((previous) => ({
+                          ...previous,
+                          assignedUserName: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Assign by user (optional)</option>
+                      {users.map((candidate) => (
+                        <option key={candidate._id} value={candidate.userName}>
+                          {candidate.userName}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+
                   <Button type="submit" disabled={taskActionLoading}>
                     <FiPlus className="mr-2" />
                     {taskActionLoading ? "Saving..." : "Create Task"}
@@ -509,6 +581,46 @@ function App() {
               <div className="rounded-lg border bg-card p-4">
                 <h2 className="mb-3 text-base font-semibold">Filters</h2>
                 <div className="grid gap-3">
+                  {isAdmin ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Click a user card to view their tasks.
+                      </p>
+                      <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+                        <button
+                          type="button"
+                          className={`w-full rounded-md border px-3 py-2 text-left text-sm ${
+                            selectedUserId === ""
+                              ? "border-primary bg-primary/10"
+                              : "border-border bg-background"
+                          }`}
+                          onClick={() => setSelectedUserId("")}
+                        >
+                          All users
+                        </button>
+                        {users.map((candidate) => (
+                          <button
+                            key={candidate._id}
+                            type="button"
+                            className={`w-full rounded-md border px-3 py-2 text-left text-sm ${
+                              selectedUserId === candidate._id
+                                ? "border-primary bg-primary/10"
+                                : "border-border bg-background"
+                            }`}
+                            onClick={() =>
+                              setSelectedUserId(candidate._id ?? "")
+                            }
+                          >
+                            <p className="font-medium">{candidate.userName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {candidate.email}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
                   <Input
                     placeholder="Search title or description"
                     value={filters.search}
@@ -655,6 +767,30 @@ function App() {
                                 ))}
                               </select>
                             </div>
+
+                            {isAdmin ? (
+                              <select
+                                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                value={editForm.assignedUserName}
+                                onChange={(event) =>
+                                  setEditForm((previous) => ({
+                                    ...previous,
+                                    assignedUserName: event.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="">Unassigned</option>
+                                {users.map((candidate) => (
+                                  <option
+                                    key={candidate._id}
+                                    value={candidate.userName}
+                                  >
+                                    {candidate.userName}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : null}
+
                             <div className="flex gap-2">
                               <Button
                                 size="sm"
