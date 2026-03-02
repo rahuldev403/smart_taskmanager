@@ -3,38 +3,41 @@ import jwt from "jsonwebtoken";
 import isStrongPassword from "validator/lib/isStrongPassword.js";
 import isEmail from "validator/lib/isEmail.js";
 
-const userSchema = new mongoose.Schema({
-  userName: {
-    type: String,
-    required: true,
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    validate: {
-      validator: (value) => isEmail(value),
-      message: "email is not valid",
+const userSchema = new mongoose.Schema(
+  {
+    userName: {
+      type: String,
+      required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      validate: {
+        validator: (value) => isEmail(value),
+        message: "email is not valid",
+      },
+    },
+    password: {
+      type: String,
+      required: true,
+      validate: {
+        validator: (value) => isStrongPassword(value),
+        message: "password is not strong enough",
+      },
+    },
+    userType: {
+      type: String,
+      enum: ["admin", "user"],
+      default: "user",
+      required: true,
+    },
+    refreshToken: {
+      type: String,
     },
   },
-  password: {
-    type: String,
-    required: true,
-    validate: {
-      validator: (value) => isStrongPassword(value),
-      message: "password is not strong enough",
-    },
-  },
-  userType: {
-    type: String,
-    enum: ["admin", "user"],
-    default: "user",
-    required: true,
-  },
-  refreshToken: {
-    type: String,
-  },
-});
+  { timestamps: true },
+);
 
 userSchema.methods.generateAccessToken = function () {
   return jwt.sign(

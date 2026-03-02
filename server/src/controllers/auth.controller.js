@@ -10,13 +10,13 @@ export const refresh = asyncHandeler(async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
 
   if (!refreshToken) {
-    throw new ApiError(404, "no refreshToken");
+    throw new ApiError(401, "No active session");
   }
 
   const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
   const user = await User.findById(decoded.userId);
   if (!user || user.refreshToken != refreshToken) {
-    throw new ApiError(403, "invalid refreshtoken");
+    throw new ApiError(401, "Invalid refresh token");
   }
 
   const newAccessToken = user.generateAccessToken();
@@ -49,7 +49,7 @@ export const register = asyncHandeler(async (req, res) => {
   }
 
   const user = await User.findOne({ email });
-  
+
   if (user) {
     throw new ApiError(400, "user already exists");
   }

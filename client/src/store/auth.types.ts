@@ -12,7 +12,7 @@ export type AuthState = {
   error: string | null;
   bootstrapped: boolean;
 
-  registerActiion: (payload: {
+  registerAction: (payload: {
     userName: string;
     email: string;
     password: string;

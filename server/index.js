@@ -1,6 +1,7 @@
 import express from "express";
 import "dotenv/config";
 import authRouter from "./src/routes/auth.route.js";
+import taskRouter from "./src/routes/task.route.js";
 import cookieParser from "cookie-parser";
 import connectDb from "./src/config/db.js";
 import rateLimit from "express-rate-limit";
@@ -26,6 +27,7 @@ app.use(globalLimiter);
 const port = process.env.PORT || 5000;
 
 app.use("/api/auth", authRouter);
+app.use("/api/tasks", taskRouter);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
